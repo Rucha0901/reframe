@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ExportResult } from "@/lib/types";
 import { formatBytes } from "@/lib/ffmpeg";
 import { Download, RotateCcw, Share2, AlertCircle } from "lucide-react";
@@ -14,11 +14,38 @@ const SHARE_TWEET_TEXT =
 interface Props {
   result: ExportResult;
   onReset: () => void;
+  soundOnCompletion: boolean;
 }
 
-export default function DownloadResult({ result, onReset }: Props) {
+export default function DownloadResult({ result, onReset, soundOnCompletion }: Props) {
   const defaultName = `reframe_${result.width}x${result.height}`;
   const [name, setName] = useState(defaultName);
+
+  // Play a two-tone chime via Web Audio API when sound is enabled
+  useEffect(() => {
+    if (!soundOnCompletion) return;
+    try {
+      const ctx = new AudioContext();
+      const play = (freq: number, startTime: number, duration: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0.35, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+        osc.start(startTime);
+        osc.stop(startTime + duration);
+      };
+      const t = ctx.currentTime;
+      play(880, t, 0.25);       // A5 — short first note
+      play(1174.66, t + 0.18, 0.4); // D6 — longer second note
+    } catch {
+      // AudioContext unavailable — silently skip
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const invalidCharRegex = /[<>:"/\\|?*]/;
   const isValid = !invalidCharRegex.test(name) && name.trim().length > 0;
