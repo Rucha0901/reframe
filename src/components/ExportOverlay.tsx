@@ -1,7 +1,7 @@
 "use client";
 
 import FocusTrap from "focus-trap-react";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { ExportStatus } from "@/lib/types";
 import LottiePlayer from "./LottiePlayer";
 import spinnerAnim from "@/lib/lottie/spinner.json";
@@ -13,10 +13,76 @@ interface Props {
   onCancel?: () => void;
 }
 
+/**
+ * Format a number of seconds into a human-readable ETA string.
+ * e.g. 90 → "1m 30s", 45 → "45s"
+ */
+function formatEta(seconds: number): string {
+  if (seconds <= 0) return "almost done";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
+}
+
 export default function ExportOverlay({ status, progress, onCancel }: Props) {
   const visible = status === "loading-engine" || status === "exporting";
+  const isLoading = status === "loading-engine";
+  const isExporting = status === "exporting";
+
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const focusAnchorRef = useRef<HTMLDivElement | null>(null);
+
+  // ETA tracking refs — stored as refs so they don't trigger re-renders
+  const exportStartTimeRef = useRef<number | null>(null);
+  const exportStartProgressRef = useRef<number>(0);
+
+  // ETA state — updated on a 1-second interval while exporting
+  const [eta, setEta] = useState<string | null>(null);
+
+  // Reset ETA tracking whenever an export begins (progress resets to 0)
+  useEffect(() => {
+    if (isExporting && progress === 0) {
+      exportStartTimeRef.current = null;
+      exportStartProgressRef.current = 0;
+      setEta(null);
+    }
+  }, [isExporting, progress]);
+
+  // Record start reference once the first non-zero progress tick arrives
+  useEffect(() => {
+    if (!isExporting || progress <= 0) return;
+    if (exportStartTimeRef.current === null) {
+      exportStartTimeRef.current = performance.now();
+      exportStartProgressRef.current = progress;
+    }
+  }, [isExporting, progress]);
+
+  // Recalculate ETA every second while exporting
+  useEffect(() => {
+    if (!isExporting) {
+      setEta(null);
+      return;
+    }
+
+    const tick = () => {
+      const startTime = exportStartTimeRef.current;
+      if (startTime === null || progress <= 0) return;
+
+      const elapsedMs = performance.now() - startTime;
+      const progressMade = progress - exportStartProgressRef.current;
+
+      if (progressMade <= 0 || elapsedMs <= 0) return;
+
+      const msPerPercent = elapsedMs / progressMade;
+      const remaining = (100 - progress) * msPerPercent;
+      setEta(formatEta(remaining / 1000));
+    };
+
+    tick(); // compute immediately on mount / progress change
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isExporting, progress]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -52,8 +118,6 @@ export default function ExportOverlay({ status, progress, onCancel }: Props) {
 
   if (!visible) return null;
 
-  const isLoading = status === "loading-engine";
-
   return (
     <FocusTrap
       active={visible}
@@ -67,6 +131,7 @@ export default function ExportOverlay({ status, progress, onCancel }: Props) {
       <div
         role="dialog"
         aria-modal="true"
+        aria-label={isLoading ? "Loading video engine" : "Exporting video"}
         tabIndex={-1}
         className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/95 dark:bg-black/70 backdrop-blur-sm"
       >
@@ -90,7 +155,7 @@ export default function ExportOverlay({ status, progress, onCancel }: Props) {
           </div>
           <div className="export-text">
             <h2 className="font-heading font-bold text-xl tracking-tight text-[var(--text)]">
-              {isLoading ? "Loading engine" : "Exporting"}
+              {isLoading ? "Loading engine" : "Exporting Video..."}
             </h2>
             <p className="text-sm text-[var(--muted)] mt-1">
               {isLoading
@@ -101,30 +166,47 @@ export default function ExportOverlay({ status, progress, onCancel }: Props) {
               Do not close or refresh this tab
             </p>
           </div>
+
+          {/* Screen-reader live region */}
           <span className="sr-only">
             {status === "loading-engine"
               ? `Loading video engine: ${progress}%`
-              : `Exporting: ${progress}%`}
+              : `Exporting: ${progress}%${eta ? `, estimated time remaining: ${eta}` : ""}`}
           </span>
-            <div className="w-full space-y-2">
-              <div className="h-1 w-full bg-film-100 rounded-full overflow-hidden">
-                <div
-                  role="progressbar"
-                  aria-valuenow={progress}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={isLoading ? "Engine download progress" : "Export progress"}
-                  className="h-full bg-film-600 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <p className="text-xs font-heading font-semibold text-[var(--muted)]">
-                {progress}%
-              </p>
-              <TipCarousel />
-              {!isLoading && (
+
+          <div className="w-full space-y-2">
+            {/* Progress bar */}
+            <div className="h-2 w-full bg-film-100 rounded-full overflow-hidden">
+              <div
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={isLoading ? "Engine download progress" : "Export progress"}
+                className="h-full bg-film-600 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            {/* Percentage + ETA row */}
+            <div className="flex items-center justify-between text-xs font-heading font-semibold text-[var(--muted)]">
+              <span aria-hidden="true">
+                {progress}% Completed
+              </span>
+              {isExporting && eta && (
+                <span aria-hidden="true" className="text-film-600">
+                  Estimated Time Left: {eta}
+                </span>
+              )}
+            </div>
+
+            <TipCarousel />
+
+            {/* Cancel button — only during active export, not engine loading */}
+            {!isLoading && (
               <div className="flex flex-col items-center gap-3 mt-4">
                 <button
+                  id="cancel-export-button"
                   type="button"
                   onClick={() => onCancel?.()}
                   className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition-colors hover:opacity-95 active:scale-[0.98]"
@@ -135,8 +217,8 @@ export default function ExportOverlay({ status, progress, onCancel }: Props) {
                   Press Escape to cancel
                 </p>
               </div>
-              )}
-            </div>
+            )}
+          </div>
         </div>
       </div>
     </FocusTrap>
