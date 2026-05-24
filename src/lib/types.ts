@@ -83,13 +83,18 @@ export const DEFAULT_RECIPE: EditRecipe = {
   trimEnd: null,
   rotate: 0,
   keepAudio: true,
+  normalizeAudio: false,
   speed: 1,
   quality: 23,
   format: "mp4",
+  stabilization: false,
+  denoise: false,
   brightness: 0,
-  contrast: 0,
-  saturation: 0,
+  contrast: 1,
+  saturation: 1,
   soundOnCompletion: false,
+  textOverlays: [],
+  version: RECIPE_VERSION,
 };
 
 export const MAX_FILE_SIZE =

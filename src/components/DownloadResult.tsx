@@ -16,9 +16,6 @@ interface Props {
   result: ExportResult;
   onReset: () => void;
   soundOnCompletion: boolean;
-}
-
-export default function DownloadResult({ result, onReset, soundOnCompletion }: Props) {
   onToggleSound: () => void;
 }
 

@@ -121,18 +121,16 @@ function validateRecipe(recipe: EditRecipe, duration: number ): string | null {
 export function useVideoEditor() {
   const [file, setFile] = useState<File | null>(null);
   const [duration, setDuration] = useState<number>(0);
-  const [recipe, setRecipe] = useState<EditRecipe>(() => ({
   const [videoMetadata, setVideoMetadata] = useState<{
     width: number;
     height: number;
     duration: number;
   } | null>(null);
-  const [recipe, setRecipe] = useState({
+  const [recipe, setRecipe] = useState<EditRecipe>({
     ...DEFAULT_RECIPE,
     soundOnCompletion:
       typeof window !== "undefined" &&
       localStorage.getItem("soundOnCompletion") === "true",
-  }));
   });
   const [status, setStatus] = useState<ExportStatus>("idle");
   const [progress, setProgress] = useState(0);

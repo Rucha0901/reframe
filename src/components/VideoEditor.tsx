@@ -594,8 +594,6 @@ export default function VideoEditor() {
             )}
 
             {status === "done" && result && (
-              <div role="status" className="animate-fade-in">
-                <DownloadResult result={result} onReset={reset} soundOnCompletion={recipe.soundOnCompletion} />
               <div role="status" className="animate-fade-in" ref={downloadRef}>
                 <DownloadResult result={result} onReset={reset} soundOnCompletion={recipe.soundOnCompletion} onToggleSound={toggleSound} />
               </div>
