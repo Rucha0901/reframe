@@ -26,7 +26,6 @@ function formatEta(seconds: number): string {
   return `${secs}s`;
 }
 
-export default function ExportOverlay({ status, progress, onCancel }: Props) {
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const minutes = Math.floor(totalSeconds / 60);
@@ -196,10 +195,10 @@ export default function ExportOverlay({ status, progress, exportStartedAt, onCan
           <span className="sr-only">
             {status === "loading-engine"
               ? `Loading video engine: ${progress}%`
-              : `Exporting: ${progress}%${eta ? `, estimated time remaining: ${eta}` : ""}`}
+              : `Exporting: ${progress}%${eta ? `, estimated time remaining: ${eta}` : ""}${elapsedMs > 0 ? `, ${formatElapsed(elapsedMs)} elapsed` : ""}`}
           </span>
 
-          <div className="w-full space-y-2">
+          <div className="w-full space-y-4">
             {/* Progress bar */}
             <div className="h-2 w-full bg-film-100 rounded-full overflow-hidden">
               <div
@@ -213,54 +212,38 @@ export default function ExportOverlay({ status, progress, exportStartedAt, onCan
               />
             </div>
 
-            {/* Percentage + ETA row */}
+            {/* Percentage + ETA + Elapsed row */}
             <div className="flex items-center justify-between text-xs font-heading font-semibold text-[var(--muted)]">
               <span aria-hidden="true">
                 {progress}% Completed
               </span>
-              {isExporting && eta && (
-                <span aria-hidden="true" className="text-film-600">
-                  Estimated Time Left: {eta}
+              {isExporting && elapsedMs > 0 && (
+                <span aria-hidden="true" className="text-[var(--text)]">
+                  {formatElapsed(elapsedMs)} elapsed
                 </span>
               )}
             </div>
+
+            {isExporting && eta && (
+              <div aria-hidden="true" className="text-xs font-heading font-semibold text-film-600 text-right">
+                Estimated Time Left: {eta}
+              </div>
+            )}
 
             <TipCarousel />
 
             {/* Cancel button — only during active export, not engine loading */}
             {!isLoading && (
-              : `Exporting: ${progress}%, ${formatElapsed(elapsedMs)} elapsed`}
-          </span>
-            <div className="w-full space-y-2">
-              <div className="h-1 w-full bg-film-100 rounded-full overflow-hidden">
-                <div
-                  role="progressbar"
-                  aria-valuenow={progress}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={isLoading ? "Engine download progress" : "Export progress"}
-                  className="h-full bg-film-600 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-4 text-xs font-heading font-semibold text-[var(--muted)]">
-                <span>{progress}%</span>
-                {!isLoading && (
-                  <span>{formatElapsed(elapsedMs)} elapsed</span>
-                )}
-              </div>
-              <TipCarousel />
-              {!isLoading && (
               <div className="flex flex-col items-center gap-3 mt-4">
                 <button
                   id="cancel-export-button"
                   type="button"
                   onClick={() => onCancel?.()}
-                  className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition-colors hover:opacity-95 active:scale-[0.98]"
+                  className="inline-flex items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--text)] transition-colors hover:opacity-95 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-film-400 focus:ring-offset-1"
                 >
                   Cancel Export
                 </button>
-                <p className="text-[var(--text)] text-xs">
+                <p className="text-[var(--muted)] text-[10px] uppercase font-semibold font-heading tracking-wider">
                   Press Escape to cancel
                 </p>
               </div>
