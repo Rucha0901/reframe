@@ -139,11 +139,6 @@ export function useVideoEditor() {
     height: number;
     duration: number;
   } | null>(null);
-  const [recipe, setRecipe] = useState<EditRecipe>({
-    ...DEFAULT_RECIPE,
-    soundOnCompletion:
-      typeof window !== "undefined" &&
-      localStorage.getItem("soundOnCompletion") === "true",
   const [recipe, setRecipe] = useState<EditRecipe>(() => {
     if (typeof window === "undefined") return { ...DEFAULT_RECIPE };
     const params = new URLSearchParams(window.location.search);
