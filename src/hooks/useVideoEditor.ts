@@ -118,6 +118,19 @@ function validateRecipe(recipe: EditRecipe, duration: number ): string | null {
   );
 }
 
+function encodeRecipe(recipe: EditRecipe): string {
+  return btoa(JSON.stringify(recipe));
+}
+
+function decodeRecipe(encoded: string): Partial<EditRecipe> | null {
+  try {
+    const decoded = JSON.parse(atob(encoded));
+    return decoded as Partial<EditRecipe>;
+  } catch {
+    return null;
+  }
+}
+
 export function useVideoEditor() {
   const [file, setFile] = useState<File | null>(null);
   const [duration, setDuration] = useState<number>(0);
@@ -131,12 +144,27 @@ export function useVideoEditor() {
     soundOnCompletion:
       typeof window !== "undefined" &&
       localStorage.getItem("soundOnCompletion") === "true",
+  const [recipe, setRecipe] = useState<EditRecipe>(() => {
+    if (typeof window === "undefined") return { ...DEFAULT_RECIPE };
+    const params = new URLSearchParams(window.location.search);
+    const encoded = params.get("settings");
+    if (encoded) {
+      const decoded = decodeRecipe(encoded);
+      if (decoded) return { ...DEFAULT_RECIPE, ...decoded };
+    }
+    return {
+      ...DEFAULT_RECIPE,
+      soundOnCompletion:
+        typeof window !== "undefined" &&
+        localStorage.getItem("soundOnCompletion") === "true",
+    };
   });
   const [status, setStatus] = useState<ExportStatus>("idle");
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ExportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileError, setFileError] = useState("");
+  const [exportStartedAt, setExportStartedAt] = useState<number | null>(null);
   const exportAbortControllerRef = useRef<AbortController | null>(null);
   const exportCancelledRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -430,12 +458,15 @@ export function useVideoEditor() {
       setStatus("loading-engine");
       setProgress(0);
       setError(null);
+      setExportStartedAt(null);
       if (result?.blobUrl) URL.revokeObjectURL(result.blobUrl);
       setResult(null);
 
       const ffmpeg = await loadFFmpeg(abortController.signal);
       if (exportCancelledRef.current) return;
 
+      const startedAt = Date.now();
+      setExportStartedAt(startedAt);
       setStatus("exporting");
 
       const exportResult = await exportVideo(
@@ -459,7 +490,10 @@ export function useVideoEditor() {
       );
       if (exportCancelledRef.current) return;
 
-      setResult(exportResult);
+      setResult({
+        ...exportResult,
+        exportDurationMs: Date.now() - startedAt,
+      });
       setStatus("done");
      }  catch (err) {
       if (exportCancelledRef.current) return;
@@ -474,6 +508,7 @@ export function useVideoEditor() {
       } else {
         setError('Export failed. Please try again or use a different video.');
       }
+      setExportStartedAt(null);
       setStatus("error");
     }
     finally {
@@ -481,7 +516,21 @@ export function useVideoEditor() {
         exportAbortControllerRef.current = null;
       }
     }
-  }, [file, recipe, result, status, overlayFile, overlayPosition, overlaySize, overlayOpacity, duration, loopMusic, musicFile, musicVolume, originalAudioVolume]);
+  }, [
+    duration,
+    file,
+    loopMusic,
+    musicFile,
+    musicVolume,
+    originalAudioVolume,
+    overlayFile,
+    overlayOpacity,
+    overlayPosition,
+    overlaySize,
+    recipe,
+    result,
+    status,
+  ]);
 
 
   useEffect(() => {
@@ -592,6 +641,7 @@ export function useVideoEditor() {
     setStatus("idle");
     setProgress(0);
     setError(null);
+    setExportStartedAt(null);
   }, []);
 
 
@@ -605,6 +655,7 @@ export function useVideoEditor() {
     setProgress(0);
     setResult(null);
     setError(null);
+    setExportStartedAt(null);
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -627,7 +678,7 @@ export function useVideoEditor() {
     const handleTimeUpdate = () => setCurrentTime(video.currentTime);
     video.addEventListener("timeupdate", handleTimeUpdate);
     return () => video.removeEventListener("timeupdate", handleTimeUpdate);
-  });
+  },[]);
 
   const toggleSound = useCallback(() => {
   updateRecipe({ soundOnCompletion: !recipe.soundOnCompletion });
@@ -644,6 +695,7 @@ export function useVideoEditor() {
     recipe,
     status,
     progress,
+    exportStartedAt,
     result,
     error,
     videoRef,
